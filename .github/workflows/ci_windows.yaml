@@ -33,6 +33,8 @@ jobs:
 
       - name: Setup devcmd
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          toolset: '14.44'
 
       - name: Install build tools
         run: |
