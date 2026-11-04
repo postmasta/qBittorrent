@@ -1,6 +1,6 @@
 name: CI - Windows
 
-on: [pull_request, push]
+on: [workflow_dispatch]
 
 permissions: {}
 
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        libt_version: ["2.0.11", "1.2.20"]
+        libt_version: ["1.2.20"]
 
     env:
       boost_path: "${{ github.workspace }}/../boost"
@@ -98,7 +98,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.8.0"
+          version: "6.8.3"
           arch: win64_msvc2022_64
           archives: qtbase qtsvg qttools
           cache: true
@@ -117,7 +117,7 @@ jobs:
           cmake `
             -B build `
             -G "Ninja" `
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_CXX_STANDARD=20 `
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON `
             -DCMAKE_INSTALL_PREFIX="${{ env.libtorrent_path }}/install" `
@@ -136,7 +136,7 @@ jobs:
           cmake `
             -B build `
             -G "Ninja" `
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON `
             -DCMAKE_TOOLCHAIN_FILE="${{ env.vcpkg_path }}/scripts/buildsystems/vcpkg.cmake" `
             -DBOOST_ROOT="${{ env.boost_path }}" `
@@ -191,18 +191,18 @@ jobs:
           name: qBittorrent-CI_Windows-x64_libtorrent-${{ matrix.libt_version }}
           path: upload
 
-      - name: Install NSIS
-        uses: repolevedavaj/install-nsis@265e893c16602d8ccfb0a9ca44173b084078917c # v1.0.3
-        with:
-          nsis-version: '3.11'
-
-      - name: Create installer
-        run: |
-          7z x -o"dist/windows/" "dist/windows/NSISPlugins.zip"
-          makensis /DQBT_DIST_DIR="../../upload/qBittorrent" /WX dist/windows/qbittorrent.nsi
-
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: qBittorrent-CI_Windows-x64_libtorrent-${{ matrix.libt_version }}-setup
-          path: dist/windows/qbittorrent_*_setup.exe
+#      - name: Install NSIS
+#        uses: repolevedavaj/install-nsis@265e893c16602d8ccfb0a9ca44173b084078917c # v1.0.3
+#        with:
+#          nsis-version: '3.11'
+#
+#      - name: Create installer
+#        run: |
+#          7z x -o"dist/windows/" "dist/windows/NSISPlugins.zip"
+#          makensis /DQBT_DIST_DIR="../../upload/qBittorrent" /WX dist/windows/qbittorrent.nsi
+#
+#      - name: Upload installer
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: qBittorrent-CI_Windows-x64_libtorrent-${{ matrix.libt_version }}-setup
+#          path: dist/windows/qbittorrent_*_setup.exe
