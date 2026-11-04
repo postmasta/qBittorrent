@@ -1,6 +1,6 @@
 /*
  * Bittorrent Client using Qt and libtorrent.
- * Copyright (C) 2017-2024  Mike Tzou (Chocobo1)
+ * Copyright (C) 2017  Mike Tzou
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,19 +30,156 @@
 
 #include <random>
 
+#include <QtLogging>
 #include <QtSystemDetection>
 
-#if defined(Q_OS_LINUX)
-#include "randomlayer_linux.cpp"
-#elif defined(Q_OS_WIN)
-#include "randomlayer_win.cpp"
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <ntsecapi.h>
+#elif defined(Q_OS_LINUX)
+#include <cerrno>
+#include <cstring>
+#include <sys/random.h>
 #else
-#include "randomlayer_other.cpp"
+#include <cerrno>
+#include <cstdio>
+#include <cstring>
 #endif
+
+#include <QString>
+
+#include "base/global.h"
+
+#ifdef Q_OS_WIN
+#include "base/utils/os.h"
+#endif
+
+namespace
+{
+#ifdef Q_OS_WIN
+    class RandomLayer
+    {
+    // need to satisfy UniformRandomBitGenerator requirements
+    public:
+        using result_type = uint32_t;
+
+        RandomLayer()
+            : m_rtlGenRandom {Utils::OS::loadWinAPI<PRTLGENRANDOM>(u"Advapi32.dll"_s, "SystemFunction036")}
+        {
+            if (!m_rtlGenRandom)
+                qFatal("Failed to load RtlGenRandom()");
+        }
+
+        static constexpr result_type min()
+        {
+            return std::numeric_limits<result_type>::min();
+        }
+
+        static constexpr result_type max()
+        {
+            return std::numeric_limits<result_type>::max();
+        }
+
+        result_type operator()()
+        {
+            result_type buf = 0;
+            const bool result = m_rtlGenRandom(&buf, sizeof(buf));
+            if (!result)
+                qFatal("RtlGenRandom() failed");
+
+            return buf;
+        }
+
+    private:
+        using PRTLGENRANDOM = BOOLEAN (WINAPI *)(PVOID, ULONG);
+        const PRTLGENRANDOM m_rtlGenRandom;
+    };
+#elif defined(Q_OS_LINUX)
+    class RandomLayer
+    {
+    // need to satisfy UniformRandomBitGenerator requirements
+    public:
+        using result_type = uint32_t;
+
+        RandomLayer()
+        {
+        }
+
+        static constexpr result_type min()
+        {
+            return std::numeric_limits<result_type>::min();
+        }
+
+        static constexpr result_type max()
+        {
+            return std::numeric_limits<result_type>::max();
+        }
+
+        result_type operator()()
+        {
+            const int RETRY_MAX = 3;
+
+            for (int i = 0; i < RETRY_MAX; ++i)
+            {
+                result_type buf = 0;
+                const ssize_t result = ::getrandom(&buf, sizeof(buf), 0);
+                if (result == sizeof(buf))  // success
+                    return buf;
+
+                if (result < 0)
+                    qFatal("getrandom() error. Reason: %s. Error code: %d.", std::strerror(errno), errno);
+            }
+
+            qFatal("getrandom() failed. Reason: too many retries.");
+        }
+    };
+#else
+    class RandomLayer
+    {
+    // need to satisfy UniformRandomBitGenerator requirements
+    public:
+        using result_type = uint32_t;
+
+        RandomLayer()
+            : m_randDev {fopen("/dev/urandom", "rb")}
+        {
+            if (!m_randDev)
+                qFatal("Failed to open /dev/urandom. Reason: %s. Error code: %d.", std::strerror(errno), errno);
+        }
+
+        ~RandomLayer()
+        {
+            fclose(m_randDev);
+        }
+
+        static constexpr result_type min()
+        {
+            return std::numeric_limits<result_type>::min();
+        }
+
+        static constexpr result_type max()
+        {
+            return std::numeric_limits<result_type>::max();
+        }
+
+        result_type operator()() const
+        {
+            result_type buf = 0;
+            if (fread(&buf, sizeof(buf), 1, m_randDev) != 1)
+                qFatal("Read /dev/urandom error. Reason: %s. Error code: %d.", std::strerror(errno), errno);
+
+            return buf;
+        }
+
+    private:
+        FILE *m_randDev = nullptr;
+    };
+#endif
+}
 
 uint32_t Utils::Random::rand(const uint32_t min, const uint32_t max)
 {
-    static const RandomLayer layer;
+    static RandomLayer layer;
 
     // new distribution is cheap: https://stackoverflow.com/a/19036349
     std::uniform_int_distribution<uint32_t> uniform(min, max);
