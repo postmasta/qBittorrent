@@ -19,10 +19,6 @@ jobs:
       fail-fast: false
       matrix:
         libtorrent:
-          - version: "2.0.11"
-            boost_major_version: "1"
-            boost_minor_version: "90"
-            boost_patch_version: "0"
           - version: "1.2.20"
             boost_major_version: "1"
             boost_minor_version: "86"
@@ -217,19 +213,3 @@ jobs:
         with:
           name: qBittorrent-CI_Windows-${{ matrix.config.arch }}_libtorrent-${{ matrix.libtorrent.version }}
           path: upload
-
-      - name: Install NSIS
-        uses: repolevedavaj/install-nsis@1ab2f7ba2fe9408db612029be0bb3c0088b0d3e9 # v1.2.1
-        with:
-          nsis-version: '3.12'
-
-      - name: Create installer
-        run: |
-          7z x -o"dist/windows/" "dist/windows/NSISPlugins.zip"
-          makensis /DQBT_CPU_ARCH="${{ matrix.config.arch }}" /DQBT_DIST_DIR="../../upload/qBittorrent" /WX dist/windows/qbittorrent.nsi
-
-      - name: Upload installer
-        uses: actions/upload-artifact@v6
-        with:
-          name: qBittorrent-CI_Windows-${{ matrix.config.arch }}_libtorrent-${{ matrix.libtorrent.version }}-setup
-          path: dist/windows/qbittorrent_*_setup.exe
